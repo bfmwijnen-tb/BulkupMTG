@@ -138,3 +138,24 @@ the same name replaces it instead of double-counting.
 | `src/score.rs` | Matching and the synergy scoring model. |
 | `src/app.rs` | Shared state and the background update job. |
 | `src/web.rs` | HTTP API and embedded UI. |
+
+## Standalone page (no install at all)
+
+Some machines block running newly-created executables, which stops both the
+release binary and `cargo build` (build scripts compile and run small
+executables of their own). For those, everything ships as a single web page:
+
+```bash
+cargo run --release --bin bundle    # writes dist/bulkup.html
+```
+
+`dist/bulkup.html` is ~7 MB and completely self-contained. Open it in a browser
+— no install, no server, no executable. The crawled EDHREC data is gzipped and
+embedded, the page inflates it with `DecompressionStream`, and card art loads
+from Scryfall's CDN.
+
+Both EDHREC and Scryfall send `Access-Control-Allow-Origin: *`, so the page can
+also fetch new commanders itself: **Check for new commanders** diffs Scryfall's
+commander list against the embedded data and pulls only what is missing,
+storing it in `localStorage`. That covers a new set without regenerating the
+file.
