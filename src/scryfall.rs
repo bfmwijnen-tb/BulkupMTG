@@ -22,7 +22,7 @@ const USER_AGENT: &str = concat!("BulkupMTG/", env!("CARGO_PKG_VERSION"), " (bul
 /// The index is keyed by normalised name, so a change to normalisation leaves
 /// every cached key subtly wrong — lookups miss instead of failing loudly. The
 /// version forces a rebuild rather than letting that happen quietly.
-pub const INDEX_VERSION: u32 = 2;
+pub const INDEX_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CardInfo {

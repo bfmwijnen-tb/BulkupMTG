@@ -60,6 +60,11 @@ pub struct CommanderData {
 /// EDHREC so they are not retried on every update.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Manifest {
+    /// Rules under which `missing` was derived. A commander recorded as absent
+    /// may simply have been looked up at a wrongly-derived URL, so when the
+    /// slug rules change the absences are discarded and retried once.
+    #[serde(default)]
+    pub slug_version: u32,
     pub fetched: HashMap<String, String>,
     pub missing: HashMap<String, String>,
 }
@@ -282,10 +287,17 @@ pub fn manifest_path(dir: &Path) -> PathBuf {
 }
 
 pub fn load_manifest(dir: &Path) -> Manifest {
-    std::fs::read(manifest_path(dir))
+    let mut m: Manifest = std::fs::read(manifest_path(dir))
         .ok()
         .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if m.slug_version != crate::names::SLUG_VERSION {
+        // Successful fetches stay valid — they are keyed by a slug that worked.
+        // Only the absences are suspect, so drop them for one retry.
+        m.missing.clear();
+        m.slug_version = crate::names::SLUG_VERSION;
+    }
+    m
 }
 
 pub fn save_manifest(dir: &Path, m: &Manifest) -> Result<()> {

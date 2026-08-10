@@ -48,7 +48,7 @@ async fn status(State(state): State<Shared>) -> Json<Status> {
     Json(Status {
         progress: state.progress.read().await.clone(),
         commanders_cached: edh.len(),
-        commanders_known: idx.commanders().len(),
+        commanders_known: state.commander_count(),
         avg_decks_cached: edh.values().filter(|d| !d.avg_deck.is_empty()).count(),
         card_index_size: idx.cards.len(),
         card_index_updated: idx.source_updated_at.clone(),

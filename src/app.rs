@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -34,6 +34,10 @@ pub struct AppState {
     pub edhrec: RwLock<HashMap<String, CommanderData>>,
     pub collection: RwLock<Collection>,
     pub progress: RwLock<Progress>,
+    /// Cached count of commander-legal commanders. Deriving it means walking the
+    /// whole card index, and the status endpoint is polled sub-second while an
+    /// update runs, so it is computed only when the index changes.
+    commander_count: AtomicUsize,
     updating: AtomicBool,
 }
 
@@ -49,10 +53,12 @@ impl AppState {
             ScryfallIndex::default()
         };
         let edh = edhrec::load_all(&dir)?;
+        let commander_count = AtomicUsize::new(scryfall.commanders().len());
 
         Ok(Arc::new(AppState {
             client: scryfall::client()?,
             limiter: RateLimiter::per_second(rps),
+            commander_count,
             scryfall: RwLock::new(scryfall),
             edhrec: RwLock::new(edh),
             collection: RwLock::new(Collection::default()),
@@ -60,6 +66,10 @@ impl AppState {
             updating: AtomicBool::new(false),
             dir,
         }))
+    }
+
+    pub fn commander_count(&self) -> usize {
+        self.commander_count.load(Ordering::Relaxed)
     }
 
     async fn set_phase(&self, phase: &str, total: usize, message: &str) {
@@ -150,6 +160,7 @@ async fn update_scryfall(state: &Shared, force: bool) -> Result<()> {
     let index = scryfall::download(&state.client).await?;
     scryfall::save(&state.dir.join("scryfall-index.json"), &index)?;
     let n = index.commanders().len();
+    state.commander_count.store(n, Ordering::Relaxed);
     *state.scryfall.write().await = index;
     state
         .tick(Some(format!("card index updated — {n} legal commanders")))
