@@ -102,6 +102,12 @@ pub fn score_commander(
     let mut by_source: HashMap<String, usize> = HashMap::new();
 
     for (rank, card) in data.cards.iter().enumerate() {
+        // Owning basics means nothing. EDHREC's own lists are already filtered
+        // by name, but that misses snow-covered and other variants, so defer to
+        // Scryfall's type line where we have it.
+        if scryfall.lookup(&card.name).is_some_and(|c| c.is_basic) {
+            continue;
+        }
         let Some(owned) = owned_lookup(collection, &card.name) else {
             continue;
         };
