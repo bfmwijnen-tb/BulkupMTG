@@ -93,7 +93,7 @@
   .pip.on { color: #14151c; border-color: transparent; transform: scale(1.06); }
   .pip[data-c=W].on { background: #f6efdc; } .pip[data-c=U].on { background: #86bdea; }
   .pip[data-c=B].on { background: #ab9fb3; } .pip[data-c=R].on { background: #ee9280; }
-  .pip[data-c=G].on { background: #8bcb9e; }
+  .pip[data-c=G].on { background: #8bcb9e; } .pip[data-c=C].on { background: #bcc0cc; }
 
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(390px, 1fr)); gap: 15px; }
   .card {
@@ -420,6 +420,18 @@ function scoreCommander(c, opts) {
   });
 }
 
+/// Does a commander's colour identity pass the pip filter?
+///
+/// Coloured commanders pass when their identity fits inside the selection, so
+/// picking W+U gives mono-white, mono-blue and Azorius. Colourless commanders
+/// have an empty identity, which is a subset of everything — without a pip of
+/// their own they would leak into every filter and could never be isolated, so
+/// they answer to C instead.
+function colorsAllow(ci) {
+  if (!ci) return selectedColors.has('C');
+  return ![...ci].some(ch => !selectedColors.has(ch));
+}
+
 function readOpts() {
   return {
     pool: $('#pool').value,
@@ -435,7 +447,7 @@ function rank(opts) {
   const out = [];
   for (const c of DATA.commanders) {
     if (opts.ownedOnly && !ownedCard(c[0])) continue;
-    if (selectedColors.size && [...(c[2] || '')].some(ch => !selectedColors.has(ch))) continue;
+    if (selectedColors.size && !colorsAllow(c[2] || '')) continue;
     const m = scoreCommander(c, opts);
     if (m.hits < opts.min) continue;
     out.push(m);
@@ -752,8 +764,9 @@ async function inflateBundle(b64) {
   $('#app').style.display = '';
   updateCacheNote();
 
-  $('#pips').innerHTML = ['W', 'U', 'B', 'R', 'G']
-    .map(c => `<button class="pip" data-c="${c}">${c}</button>`).join('');
+  $('#pips').innerHTML = [['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'],
+    ['G', 'Green'], ['C', 'Colourless']]
+    .map(([c, t]) => `<button class="pip" data-c="${c}" title="${t}">${c}</button>`).join('');
   $('#pips').addEventListener('click', e => {
     const b = e.target.closest('.pip'); if (!b) return;
     const c = b.dataset.c;

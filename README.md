@@ -155,6 +155,9 @@ self-contained — open it in a browser: no install, no server, no executable.
 The crawled EDHREC data is gzipped and embedded, the page inflates it with
 `DecompressionStream`, and card art loads from Scryfall's CDN.
 
+Because everything runs in the browser, the page can also be hosted as static
+content — see [`deploy/`](deploy/) for Posit Connect.
+
 Both EDHREC and Scryfall send `Access-Control-Allow-Origin: *`, so the page can
 also fetch new commanders itself: **Check for new commanders** diffs Scryfall's
 commander list against the embedded data and pulls only what is missing,
