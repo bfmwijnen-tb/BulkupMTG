@@ -22,7 +22,7 @@ const USER_AGENT: &str = concat!("BulkupMTG/", env!("CARGO_PKG_VERSION"), " (bul
 /// The index is keyed by normalised name, so a change to normalisation leaves
 /// every cached key subtly wrong — lookups miss instead of failing loudly. The
 /// version forces a rebuild rather than letting that happen quietly.
-pub const INDEX_VERSION: u32 = 3;
+pub const INDEX_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CardInfo {
@@ -106,6 +106,18 @@ struct RawCard {
     card_faces: Option<Vec<RawFace>>,
     #[serde(default)]
     legalities: HashMap<String, String>,
+    #[serde(default)]
+    layout: String,
+    #[serde(default)]
+    all_parts: Option<Vec<RawPart>>,
+}
+
+#[derive(Deserialize)]
+struct RawPart {
+    #[serde(default)]
+    component: String,
+    #[serde(default)]
+    name: String,
 }
 
 #[derive(Deserialize)]
@@ -124,10 +136,24 @@ struct ImageUris {
     normal: Option<String>,
 }
 
+/// A melded card is a legendary creature that only exists mid-game — it can
+/// never be your commander, and EDHREC has no page for it.
+fn is_meld_result(raw: &RawCard) -> bool {
+    raw.layout == "meld"
+        && raw.all_parts.as_ref().is_some_and(|parts| {
+            parts
+                .iter()
+                .any(|p| p.component == "meld_result" && p.name == raw.name)
+        })
+}
+
 /// Legendary creatures, plus anything that says so in its own rules text
 /// (Grist, backgrounds-adjacent designs, planeswalker commanders).
 fn detect_commander(raw: &RawCard) -> bool {
     if raw.legalities.get("commander").map(String::as_str) != Some("legal") {
+        return false;
+    }
+    if is_meld_result(raw) {
         return false;
     }
     let front_type = raw

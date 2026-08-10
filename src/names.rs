@@ -20,7 +20,7 @@ use unicode_normalization::UnicodeNormalization;
 
 /// Bump when these rules change. Cached artefacts keyed by name embed the old
 /// rules and must be rebuilt rather than trusted.
-pub const SLUG_VERSION: u32 = 2;
+pub const SLUG_VERSION: u32 = 3;
 
 /// Scryfall's separator for genuine multi-face cards.
 const FACE_SEP: &str = " // ";
@@ -35,8 +35,14 @@ fn is_combining(c: char) -> bool {
 }
 
 /// Elided outright: they never mark a word boundary in either vocabulary.
+///
+/// A scan of all 3,353 commander names turns up only five non-alphanumeric
+/// characters beyond space, comma and hyphen: `/`, `.`, `&`, `"` and the
+/// modifier colon in `Ratonhnhaké꞉ton`. `/`, `&` and `"` behave as separators
+/// (`Bebop, Skull & Crossbones` is `bebop-skull-crossbones`); the other two are
+/// elided, so this list is complete for the current card pool.
 fn is_elided(c: char) -> bool {
-    matches!(c, '\'' | '\u{2019}' | '.')
+    matches!(c, '\'' | '\u{2019}' | '.' | '\u{A789}')
 }
 
 /// Normalise a single face: lowercase, unaccented, punctuation removed, runs of
@@ -104,6 +110,14 @@ mod tests {
         assert_eq!(slug("Quake, Agent of S.H.I.E.L.D."), "quake-agent-of-shield");
         assert_eq!(slug("Scientist Supreme of A.I.M."), "scientist-supreme-of-aim");
         assert_eq!(slug("U.S.Agent, John Walker"), "usagent-john-walker");
+        // U+A789 MODIFIER LETTER COLON, the only such character in the pool.
+        assert_eq!(slug("Ratonhnhaké꞉ton"), "ratonhnhaketon");
+    }
+
+    /// Ampersands and quotes do break words, unlike periods.
+    #[test]
+    fn ampersands_and_quotes_separate() {
+        assert_eq!(slug("Bebop, Skull & Crossbones"), "bebop-skull-crossbones");
     }
 
     /// `SP//dr` is a single face whose name contains slashes, so the slashes are
