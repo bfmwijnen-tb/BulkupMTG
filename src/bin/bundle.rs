@@ -24,14 +24,21 @@ mod scryfall;
 
 const TEMPLATE: &str = include_str!("../../ui/standalone.html");
 
-/// `[name, scryfall uuid]`. The uuid rebuilds a CDN image URL client-side,
-/// which is far smaller than storing the URL itself.
+/// `[name, scryfall uuid, is land]`. The uuid rebuilds a CDN image URL
+/// client-side, which is far smaller than storing the URL itself; the land flag
+/// drives the "exclude lands" filter without shipping type lines.
 #[derive(Serialize)]
-struct Card(String, String);
+struct Card(String, String, u8);
 
-/// `[name, uuid, colour identity, deck count, cards, average deck]`,
+/// `[name, uuid, colour identity, deck count, cards, average deck, basics]`,
 /// where each card entry is `[index, synergy %, inclusion %]` and the average
 /// deck is a list of indices.
+///
+/// `basics` is how many basic lands the average deck runs. A Commander deck is
+/// always 99 cards, and the average decklist is stored without basics, so the
+/// remainder is the basic count — between 8 and 69 depending on the commander.
+/// Without it, "40 of the top 100" reads as far worse than it is, because a
+/// third of a real deck is land you already own.
 #[derive(Serialize)]
 struct Commander(
     String,
@@ -40,7 +47,11 @@ struct Commander(
     u32,
     Vec<(usize, i32, i32)>,
     Vec<usize>,
+    u32,
 );
+
+/// Cards in a Commander deck, excluding the commander itself.
+const DECK_SIZE: usize = 99;
 
 #[derive(Serialize)]
 struct Bundle {
@@ -83,8 +94,9 @@ fn main() -> Result<()> {
             .and_then(|i| i.image_normal.as_deref())
             .map(uuid_from_image)
             .unwrap_or_default();
+        let is_land = info.is_some_and(|i| i.type_line.contains("Land")) as u8;
         let i = cards.len();
-        cards.push(Card(name.to_string(), uuid));
+        cards.push(Card(name.to_string(), uuid, is_land));
         card_ids.insert(name.to_string(), i);
         i
     };
@@ -115,6 +127,11 @@ fn main() -> Result<()> {
             .filter(|n| !index.lookup(n).is_some_and(|i| i.is_basic))
             .map(|n| intern(n, &index))
             .collect();
+        let basics = if avg.is_empty() {
+            0
+        } else {
+            DECK_SIZE.saturating_sub(avg.len()) as u32
+        };
 
         out.push(Commander(
             data.name.clone(),
@@ -125,6 +142,7 @@ fn main() -> Result<()> {
             data.deck_count,
             entries,
             avg,
+            basics,
         ));
     }
 
@@ -140,12 +158,13 @@ fn main() -> Result<()> {
     let gz = enc.finish()?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&gz);
 
+    // Written to the repo root and committed, so the page can be downloaded
+    // from GitHub without building anything.
     let html = TEMPLATE.replace("__BUNDLE__", &b64);
-    std::fs::create_dir_all("dist")?;
-    std::fs::write("dist/bulkup.html", &html)?;
+    std::fs::write("bulkup.html", &html)?;
 
     println!(
-        "dist/bulkup.html — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",
+        "bulkup.html — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",
         bundle.commanders.len(),
         bundle.cards.len(),
         raw.len() as f64 / 1e6,
