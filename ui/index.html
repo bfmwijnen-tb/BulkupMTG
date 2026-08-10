@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BulkupMTG</title>
+<style>
+  :root {
+    --bg: #12131a; --panel: #1b1d27; --panel-2: #232633; --line: #2f3342;
+    --text: #e7e9f0; --muted: #9aa0b4; --accent: #f0b429; --good: #4ade80;
+    --bad: #f87171; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 20;
+  }
+  h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+  h1 span { color: var(--accent); }
+  .spacer { flex: 1; }
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 13px; cursor: pointer; font: inherit; font-size: 14px;
+  }
+  button:hover:not(:disabled) { background: #2c3040; border-color: #3d4356; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); color: #1a1200; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #ffc53d; }
+  main { padding: 20px; max-width: 1500px; margin: 0 auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 18px; }
+  .drop {
+    border: 2px dashed var(--line); border-radius: var(--radius); padding: 26px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--text); background: #1e2029; }
+  .files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    display: flex; align-items: center; gap: 8px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 20px; padding: 5px 8px 5px 13px; font-size: 13px;
+  }
+  .chip b { font-weight: 600; }
+  .chip .x { cursor: pointer; color: var(--muted); border: 0; background: none; padding: 0 4px; font-size: 15px; }
+  .chip .x:hover { color: var(--bad); }
+  .controls { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+  select, input[type=number] {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 14px;
+  }
+  input[type=number] { width: 68px; }
+  .pips { display: flex; gap: 4px; }
+  .pip {
+    width: 25px; height: 25px; border-radius: 50%; border: 1px solid var(--line);
+    cursor: pointer; font-size: 12px; font-weight: 700; display: grid; place-items: center;
+    background: var(--panel-2); color: var(--muted);
+  }
+  .pip.on { color: #14151c; border-color: transparent; }
+  .pip[data-c=W].on { background: #f5eeda; } .pip[data-c=U].on { background: #7cb7e8; }
+  .pip[data-c=B].on { background: #a99cb0; } .pip[data-c=R].on { background: #ec8b78; }
+  .pip[data-c=G].on { background: #86c99a; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(365px, 1fr)); gap: 14px; }
+  .card {
+    display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 12px; cursor: pointer; transition: .15s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card img { width: 76px; height: 106px; object-fit: cover; border-radius: 6px; background: var(--panel-2); flex: none; }
+  .card .body { min-width: 0; flex: 1; }
+  .card .name { font-weight: 600; font-size: 14px; margin-bottom: 5px; }
+  .rank { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 5px; }
+  /* One line, never wrapping — a wrapped stat row makes cards different
+     heights and the list impossible to scan down. */
+  .stats { display: flex; gap: 11px; font-size: 12.5px; color: var(--muted); align-items: baseline; white-space: nowrap; }
+  .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .score { color: var(--accent); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .ci { margin-left: auto; display: flex; gap: 3px; }
+  .ci i {
+    width: 15px; height: 15px; border-radius: 50%; font-style: normal; font-size: 9.5px;
+    font-weight: 800; display: grid; place-items: center; color: #14151c;
+  }
+  .ci i[data-c=W] { background: #f5eeda; } .ci i[data-c=U] { background: #7cb7e8; }
+  .ci i[data-c=B] { background: #a99cb0; } .ci i[data-c=R] { background: #ec8b78; }
+  .ci i[data-c=G] { background: #86c99a; } .ci i[data-c=C] { background: #b9bdc9; }
+  .bar { height: 4px; background: var(--panel-2); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
+  .empty { text-align: center; padding: 50px 20px; color: var(--muted); }
+  /* progress */
+  #progress { display: none; }
+  #progress.on { display: block; }
+  .pbar { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-top: 9px; }
+  .pbar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+  /* detail */
+  #overlay {
+    display: none; position: fixed; inset: 0; background: rgba(6,7,11,.82);
+    z-index: 50; overflow-y: auto; padding: 28px 16px;
+  }
+  #overlay.on { display: block; }
+  .sheet { max-width: 1300px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  .sheet header { position: sticky; top: -28px; border-radius: 14px 14px 0 0; }
+  .sheet .inner { padding: 18px; }
+  .cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  /* Badges anchor to the art, not to the tile — the tile also holds the caption,
+     so anchoring here would float them over the text. */
+  .mini .thumb { position: relative; }
+  .mini img { width: 100%; border-radius: 8px; display: block; background: var(--panel-2); aspect-ratio: 488/680; }
+  .mini.miss img { opacity: .22; filter: grayscale(1); }
+  .mini .tag {
+    position: absolute; top: 6px; right: 6px; background: var(--good); color: #06210f;
+    font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 5px;
+  }
+  .mini .syn {
+    position: absolute; bottom: 6px; left: 6px; background: rgba(8,9,14,.86);
+    font-size: 11px; padding: 2px 6px; border-radius: 5px; font-variant-numeric: tabular-nums;
+  }
+  .mini .syn.neg { color: var(--muted); }
+  .mini .cname {
+    font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.32;
+    /* Fixed height keeps the grid rows aligned regardless of name length. */
+    height: 2.64em; overflow: hidden;
+  }
+  .mini .cname b { color: var(--text); font-weight: 600; }
+  .mini .src { color: var(--good); }
+  .legend { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .kv { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13.5px; margin-bottom: 14px; }
+  .kv div b { color: var(--accent); font-size: 17px; font-variant-numeric: tabular-nums; }
+  .kv div span { display: block; color: var(--muted); font-size: 12px; }
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 10px 16px; z-index: 100; display: none; font-size: 14px;
+  }
+  .toast.on { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bulkup<span>MTG</span></h1>
+  <div class="spacer"></div>
+  <span id="cachenote" class="note"></span>
+  <button id="btn-update">Update data</button>
+  <button id="btn-force" title="Re-download everything, including commanders previously missing from EDHREC">Full rebuild</button>
+</header>
+
+<main>
+  <div class="panel" id="progress">
+    <b id="p-phase">Working…</b> <span id="p-msg" class="note"></span>
+    <div class="pbar"><i id="p-bar" style="width:0"></i></div>
+  </div>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <b>Drop Archidekt bulk exports here</b> — or click to choose. Multiple files welcome.
+    </div>
+    <input type="file" id="file" multiple accept=".txt,.csv" hidden>
+    <div class="files" id="files"></div>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <label>Min. top-100 cards owned <input type="number" id="min" value="40" min="0" max="100" step="1"></label>
+      <label>Rank by
+        <select id="sort">
+          <option value="synergy">Synergy score</option>
+          <option value="hits">Raw card count</option>
+          <option value="avgdeck">Average-deck coverage</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="owned"> Only commanders I own</label>
+      <label>Colours <span class="pips" id="pips"></span></label>
+      <div class="spacer"></div>
+      <span class="note" id="count"></span>
+    </div>
+  </div>
+
+  <div id="results" class="grid"></div>
+  <div id="empty" class="empty"></div>
+</main>
+
+<div id="overlay"><div class="sheet">
+  <header>
+    <h1 id="d-name">—</h1>
+    <div class="spacer"></div>
+    <a id="d-link" target="_blank" rel="noopener"><button>Scryfall</button></a>
+    <button id="d-close">Close</button>
+  </header>
+  <div class="inner">
+    <div class="kv" id="d-kv"></div>
+    <div class="legend">Cards you own are highlighted; the rest are dimmed. The number is EDHREC's synergy score — how much more this commander plays a card than its colours generally do.</div>
+    <div class="cardgrid" id="d-cards"></div>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const COLORS = ['W','U','B','R','G'];
+let selectedColors = new Set();
+let pollTimer = null;
+
+function toast(msg, ms = 3200) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), ms);
+}
+
+// --- colour pips ---
+$('#pips').innerHTML = COLORS.map(c => `<button class="pip" data-c="${c}">${c}</button>`).join('');
+$('#pips').addEventListener('click', e => {
+  const b = e.target.closest('.pip'); if (!b) return;
+  const c = b.dataset.c;
+  selectedColors.has(c) ? selectedColors.delete(c) : selectedColors.add(c);
+  b.classList.toggle('on', selectedColors.has(c));
+  refresh();
+});
+
+// --- uploads ---
+const drop = $('#drop');
+drop.addEventListener('click', () => $('#file').click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over');
+  upload(e.dataTransfer.files);
+});
+$('#file').addEventListener('change', e => upload(e.target.files));
+
+async function upload(fileList) {
+  if (!fileList || !fileList.length) return;
+  const fd = new FormData();
+  for (const f of fileList) fd.append('files', f, f.name);
+  try {
+    const r = await fetch('/api/collection', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    renderFiles(await r.json());
+    refresh();
+  } catch (err) { toast('Upload failed: ' + err.message); }
+}
+
+async function removeFile(name) {
+  const r = await fetch('/api/collection?file=' + encodeURIComponent(name), { method: 'DELETE' });
+  renderFiles(await r.json());
+  refresh();
+}
+
+function renderFiles(sum) {
+  $('#files').innerHTML = (sum.files || []).map(f => `
+    <span class="chip">
+      <b>${esc(f.name)}</b> ${f.cards} cards
+      ${f.unparsed.length ? `<span title="${esc(f.unparsed.slice(0,8).join('\n'))}" style="color:var(--bad)">${f.unparsed.length} unread</span>` : ''}
+      <button class="x" data-f="${esc(f.name)}">&times;</button>
+    </span>`).join('');
+  if (sum.files && sum.files.length) {
+    $('#files').insertAdjacentHTML('beforeend',
+      `<span class="chip" style="background:none;border-style:dashed">${sum.total_cards} cards, ${sum.distinct_cards} distinct</span>`);
+  }
+}
+$('#files').addEventListener('click', e => {
+  const b = e.target.closest('.x'); if (b) removeFile(b.dataset.f);
+});
+
+// --- results ---
+$('#min').addEventListener('change', refresh);
+$('#sort').addEventListener('change', refresh);
+$('#owned').addEventListener('change', refresh);
+
+async function refresh() {
+  const q = new URLSearchParams({
+    min: $('#min').value || 0,
+    sort: $('#sort').value,
+    owned: $('#owned').checked ? 'true' : 'false',
+  });
+  if (selectedColors.size) q.set('colors', [...selectedColors].join(''));
+
+  const data = await (await fetch('/api/results?' + q)).json();
+  const res = $('#results'), empty = $('#empty');
+  $('#count').textContent = `${data.total_matches} commander${data.total_matches === 1 ? '' : 's'} over the threshold · ${data.commanders_scored} scored`;
+
+  if (!data.matches.length) {
+    res.innerHTML = '';
+    empty.textContent = data.commanders_scored === 0
+      ? 'No EDHREC data cached yet — press "Update data" to build it.'
+      : 'Nothing clears the threshold. Upload more bulk, or lower the minimum.';
+    return;
+  }
+  empty.textContent = '';
+  const max = Math.max(...data.matches.map(m => m.synergy_score), 0.0001);
+
+  res.innerHTML = data.matches.map((m, i) => {
+    const real = m.top_hits - m.staple_hits;
+    const ci = (m.color_identity.length ? m.color_identity : ['C'])
+      .map(c => `<i data-c="${c}">${c}</i>`).join('');
+    const avg = m.avg_deck_total ? `avg deck <b>${m.avg_deck_owned}/${m.avg_deck_total}</b> · ` : '';
+    const src = Object.entries(m.by_source)
+      .sort((a, b) => b[1] - a[1])
+      .map(([f, n]) => `${n} in ${esc(f)}`).join(' · ');
+    return `<div class="card" data-slug="${esc(m.slug)}">
+      <img loading="lazy" src="${m.image_small || ''}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="body">
+        <div class="name"><span class="rank">${i + 1}.</span>${esc(m.name)}${m.owns_commander ? ' ✔' : ''}</div>
+        <div class="stats">
+          <span class="score">${m.synergy_score.toFixed(2)}</span>
+          <span><b>${m.top_hits}</b>/100</span>
+          <span><b>${real}</b> real</span>
+          <span class="ci">${ci}</span>
+        </div>
+        <div class="bar"><i style="width:${(m.synergy_score / max * 100).toFixed(1)}%"></i></div>
+        <div class="note">${avg}${src || 'no source breakdown'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('#results').addEventListener('click', e => {
+  const c = e.target.closest('.card'); if (c) openDetail(c.dataset.slug);
+});
+
+// --- detail ---
+async function openDetail(slug) {
+  const d = await (await fetch('/api/commander/' + encodeURIComponent(slug))).json();
+  const s = d.summary;
+  $('#d-name').textContent = s.name;
+  $('#d-link').href = s.scryfall_uri || '#';
+  $('#d-kv').innerHTML = `
+    <div><b>${s.synergy_score.toFixed(2)}</b><span>synergy score</span></div>
+    <div><b>${s.top_hits}</b><span>of top 100 owned</span></div>
+    <div><b>${s.top_hits - s.staple_hits}</b><span>non-staple hits</span></div>
+    <div><b>${s.total_hits}</b><span>owned across full list</span></div>
+    ${s.avg_deck_total ? `<div><b>${s.avg_deck_owned}/${s.avg_deck_total}</b><span>of EDHREC's average deck</span></div>` : ''}
+    <div><b>${s.deck_count.toLocaleString()}</b><span>decks on EDHREC</span></div>
+    <div><b>${s.owns_commander ? 'Yes' : 'No'}</b><span>commander in your bulk</span></div>`;
+
+  $('#d-cards').innerHTML = d.cards.map(c => {
+    // Filenames are long; the extension carries no information here.
+    const src = c.sources.map(s => s[0].replace(/\.[^.]+$/, '')).join(', ');
+    const syn = (c.synergy * 100).toFixed(0);
+    return `<div class="mini ${c.owned ? '' : 'miss'}">
+      <div class="thumb">
+        <img loading="lazy" src="${c.image_normal || c.image_small || ''}" alt="${esc(c.name)}"
+             onerror="this.style.visibility='hidden'">
+        ${c.owned ? `<span class="tag">${c.qty > 1 ? c.qty + '×' : 'own'}</span>` : ''}
+        <span class="syn ${c.synergy < 0 ? 'neg' : ''}">${syn}%</span>
+      </div>
+      <div class="cname" title="${esc(c.name)}${src ? ' — ' + esc(src) : ''}">
+        <b>${esc(c.name)}</b>${src ? `<br><span class="src">${esc(src)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  $('#overlay').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function closeDetail() {
+  $('#overlay').classList.remove('on');
+  document.body.style.overflow = '';
+}
+$('#d-close').addEventListener('click', closeDetail);
+$('#overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeDetail(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+
+// --- update ---
+$('#btn-update').addEventListener('click', () => startUpdate(false));
+$('#btn-force').addEventListener('click', () => {
+  if (confirm('Re-download the card index and re-crawl all commanders? This takes a while.')) startUpdate(true);
+});
+
+async function startUpdate(force) {
+  const r = await fetch('/api/update?force=' + force, { method: 'POST' });
+  if (r.status === 409) { toast('An update is already running.'); return; }
+  toast('Update started — results fill in as it runs.');
+  poll(true);
+}
+
+async function poll(fast) {
+  const s = await (await fetch('/api/status')).json();
+  const p = s.progress;
+  $('#progress').classList.toggle('on', p.running);
+  if (p.running) {
+    $('#p-phase').textContent = p.phase;
+    $('#p-msg').textContent = `${p.done}/${p.total} — ${p.message}`;
+    $('#p-bar').style.width = p.total ? (p.done / p.total * 100).toFixed(1) + '%' : '0';
+  }
+  $('#cachenote').textContent =
+    `${s.commanders_cached.toLocaleString()}/${s.commanders_known.toLocaleString()} commanders cached`;
+  $('#btn-update').disabled = $('#btn-force').disabled = p.running;
+
+  clearTimeout(pollTimer);
+  if (p.running) {
+    pollTimer = setTimeout(() => poll(true), 900);
+    // Refresh results periodically so a long crawl shows partial answers.
+    if (!poll._n || Date.now() - poll._n > 8000) { poll._n = Date.now(); refresh(); }
+  } else {
+    if (fast) refresh();
+    pollTimer = setTimeout(() => poll(false), 15000);
+  }
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+(async () => {
+  renderFiles(await (await fetch('/api/collection')).json());
+  await poll(false);
+  refresh();
+})();
+</script>
+</body>
+</html>
