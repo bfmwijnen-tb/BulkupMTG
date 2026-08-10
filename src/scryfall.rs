@@ -15,7 +15,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::names;
 
-const USER_AGENT: &str = concat!("BulkupMTG/", env!("CARGO_PKG_VERSION"), " (bulk collection matcher)");
+const USER_AGENT: &str = concat!(
+    "BulkupMTG/",
+    env!("CARGO_PKG_VERSION"),
+    " (bulk collection matcher)"
+);
 
 /// Bump whenever `names::key` changes or a new field is distilled from the dump.
 ///
@@ -168,10 +172,10 @@ fn detect_commander(raw: &RawCard) -> bool {
         return true;
     }
     let text_says = raw.oracle_text.contains("can be your commander")
-        || raw
-            .card_faces
-            .as_ref()
-            .is_some_and(|fs| fs.iter().any(|f| f.oracle_text.contains("can be your commander")));
+        || raw.card_faces.as_ref().is_some_and(|fs| {
+            fs.iter()
+                .any(|f| f.oracle_text.contains("can be your commander"))
+        });
     text_says
 }
 
@@ -334,6 +338,17 @@ pub fn load(path: &Path) -> Result<ScryfallIndex> {
     Ok(index)
 }
 
+pub fn save(path: &Path, index: &ScryfallIndex) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("tmp");
+    let f = std::fs::File::create(&tmp)?;
+    serde_json::to_writer(std::io::BufWriter::new(f), index)?;
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,11 +364,20 @@ mod tests {
             source_updated_at: "2020-01-01".into(),
             ..Default::default()
         };
-        old.cards.insert("stale key".into(), CardInfo {
-            name: "Stale".into(), color_identity: vec![], type_line: String::new(), cmc: 0.0,
-            image_small: None, image_normal: None, scryfall_uri: String::new(),
-            is_commander: false, is_basic: false,
-        });
+        old.cards.insert(
+            "stale key".into(),
+            CardInfo {
+                name: "Stale".into(),
+                color_identity: vec![],
+                type_line: String::new(),
+                cmc: 0.0,
+                image_small: None,
+                image_normal: None,
+                scryfall_uri: String::new(),
+                is_commander: false,
+                is_basic: false,
+            },
+        );
         save(&path, &old).unwrap();
 
         // An index written under different name-normalisation rules must not be
@@ -362,21 +386,13 @@ mod tests {
         assert!(loaded.cards.is_empty());
         assert_eq!(loaded.source_updated_at, "");
 
-        let current = ScryfallIndex { version: INDEX_VERSION, ..old };
+        let current = ScryfallIndex {
+            version: INDEX_VERSION,
+            ..old
+        };
         save(&path, &current).unwrap();
         assert_eq!(load(&path).unwrap().cards.len(), 1);
 
         std::fs::remove_dir_all(&dir).ok();
     }
-}
-
-pub fn save(path: &Path, index: &ScryfallIndex) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let tmp = path.with_extension("tmp");
-    let f = std::fs::File::create(&tmp)?;
-    serde_json::to_writer(std::io::BufWriter::new(f), index)?;
-    std::fs::rename(&tmp, path)?;
-    Ok(())
 }

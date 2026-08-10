@@ -141,7 +141,9 @@ async fn run_update(state: &Shared, force: bool) -> Result<()> {
 /// Refresh the card index only when Scryfall reports a newer dump than the one
 /// on disk — a normal update after a new set is a single HEAD-ish request.
 async fn update_scryfall(state: &Shared, force: bool) -> Result<()> {
-    state.set_phase("scryfall", 1, "checking Scryfall bulk data").await;
+    state
+        .set_phase("scryfall", 1, "checking Scryfall bulk data")
+        .await;
 
     let remote = scryfall::remote_version(&state.client).await?;
     let (current, version) = {
@@ -183,12 +185,18 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
     // has already told us it does not know about.
     let todo: Vec<(String, String)> = commanders
         .into_iter()
-        .filter(|(_, slug)| force || (!have.contains_key(slug) && !manifest.missing.contains_key(slug)))
+        .filter(|(_, slug)| {
+            force || (!have.contains_key(slug) && !manifest.missing.contains_key(slug))
+        })
         .collect();
     drop(have);
 
     state
-        .set_phase("commanders", todo.len(), &format!("{} commanders to fetch", todo.len()))
+        .set_phase(
+            "commanders",
+            todo.len(),
+            &format!("{} commanders to fetch", todo.len()),
+        )
         .await;
     if todo.is_empty() {
         return Ok(());
@@ -213,7 +221,9 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
                 match edhrec::fetch_commander(&state.client, &state.limiter, &name, &slug).await {
                     Ok(edhrec::FetchOutcome::Fetched(data)) => {
                         if let Err(e) = edhrec::save_commander(&state.dir, &data) {
-                            state.note_error(format!("{name}: cache write failed: {e}")).await;
+                            state
+                                .note_error(format!("{name}: cache write failed: {e}"))
+                                .await;
                         }
                         state.edhrec.write().await.insert(slug.clone(), *data);
                         state.tick(Some(name)).await;
@@ -238,7 +248,9 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
     let have = state.edhrec.read().await;
     for (slug, data) in have.iter() {
-        manifest.fetched.insert(slug.clone(), data.fetched_at.clone());
+        manifest
+            .fetched
+            .insert(slug.clone(), data.fetched_at.clone());
         manifest.missing.remove(slug);
     }
     drop(have);
@@ -249,6 +261,34 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
     Ok(())
 }
 
+/// Fetch one commander's average deck on demand and cache it.
+///
+/// Opening a commander in the UI should not have to wait for the batch pass to
+/// reach it, and a single request is fast enough to serve inline.
+pub async fn ensure_avg_deck(state: &Shared, slug: &str) {
+    let needed = state
+        .edhrec
+        .read()
+        .await
+        .get(slug)
+        .is_some_and(|d| d.needs_avg_deck());
+    if !needed {
+        return;
+    }
+
+    let list = edhrec::fetch_avg_deck(&state.client, &state.limiter, slug)
+        .await
+        .unwrap_or_default();
+
+    let mut guard = state.edhrec.write().await;
+    let Some(d) = guard.get_mut(slug) else { return };
+    d.avg_deck = list;
+    d.avg_deck_attempted = true;
+    let snapshot = d.clone();
+    drop(guard);
+    let _ = edhrec::save_commander(&state.dir, &snapshot);
+}
+
 /// Second pass: the concrete 99-card lists. Split out so the UI is usable as
 /// soon as the synergy data lands.
 async fn crawl_avg_decks(state: &Shared) -> Result<()> {
@@ -257,12 +297,16 @@ async fn crawl_avg_decks(state: &Shared) -> Result<()> {
         .read()
         .await
         .values()
-        .filter(|d| d.avg_deck.is_empty())
+        .filter(|d| d.needs_avg_deck())
         .map(|d| d.slug.clone())
         .collect();
 
     state
-        .set_phase("average decks", todo.len(), &format!("{} average decks to fetch", todo.len()))
+        .set_phase(
+            "average decks",
+            todo.len(),
+            &format!("{} average decks to fetch", todo.len()),
+        )
         .await;
     if todo.is_empty() {
         return Ok(());
@@ -280,17 +324,18 @@ async fn crawl_avg_decks(state: &Shared) -> Result<()> {
                 };
                 match edhrec::fetch_avg_deck(&state.client, &state.limiter, &slug).await {
                     Ok(list) => {
-                        if !list.is_empty() {
-                            let mut guard = state.edhrec.write().await;
-                            if let Some(d) = guard.get_mut(&slug) {
-                                d.avg_deck = list;
-                                let snapshot = d.clone();
-                                drop(guard);
-                                let _ = edhrec::save_commander(&state.dir, &snapshot);
-                            }
+                        let mut guard = state.edhrec.write().await;
+                        if let Some(d) = guard.get_mut(&slug) {
+                            d.avg_deck = list;
+                            d.avg_deck_attempted = true;
+                            let snapshot = d.clone();
+                            drop(guard);
+                            let _ = edhrec::save_commander(&state.dir, &snapshot);
                         }
                         state.tick(Some(slug)).await;
                     }
+                    // Leave `attempted` unset on a transport error so a network
+                    // blip is retried, unlike a genuine absence.
                     Err(e) => {
                         state.note_error(format!("{slug}: {e}")).await;
                         state.tick(None).await;

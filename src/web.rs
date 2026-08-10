@@ -16,7 +16,10 @@ pub fn router(state: Shared) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/api/status", get(status))
-        .route("/api/collection", get(collection_summary).post(upload).delete(clear))
+        .route(
+            "/api/collection",
+            get(collection_summary).post(upload).delete(clear),
+        )
         .route("/api/results", get(results))
         .route("/api/commander/{slug}", get(commander))
         .route("/api/update", post(update))
@@ -25,7 +28,10 @@ pub fn router(state: Shared) -> Router {
 }
 
 async fn index() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], Html(INDEX_HTML))
+    (
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        Html(INDEX_HTML),
+    )
 }
 
 #[derive(Serialize)]
@@ -198,6 +204,13 @@ async fn commander(
     State(state): State<Shared>,
     Path(slug): Path<String>,
 ) -> Result<Json<score::CommanderDetail>, StatusCode> {
+    if !state.edhrec.read().await.contains_key(&slug) {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    // Pull this commander's average deck now rather than making the reader wait
+    // for the background pass to reach it.
+    crate::app::ensure_avg_deck(&state, &slug).await;
+
     let edh = state.edhrec.read().await;
     let data = edh.get(&slug).ok_or(StatusCode::NOT_FOUND)?;
     let idx = state.scryfall.read().await;

@@ -97,8 +97,14 @@ mod tests {
         assert_eq!(slug("Tasigur, the Golden Fang"), "tasigur-the-golden-fang");
         assert_eq!(slug("Éomer, King of Rohan"), "eomer-king-of-rohan");
         assert_eq!(slug("The Scarab God"), "the-scarab-god");
-        assert_eq!(slug("Kroxa, Titan of Death's Hunger"), "kroxa-titan-of-deaths-hunger");
-        assert_eq!(slug("Grub, Storied Matriarch // Grub, Notorious Auntie"), "grub-storied-matriarch");
+        assert_eq!(
+            slug("Kroxa, Titan of Death's Hunger"),
+            "kroxa-titan-of-deaths-hunger"
+        );
+        assert_eq!(
+            slug("Grub, Storied Matriarch // Grub, Notorious Auntie"),
+            "grub-storied-matriarch"
+        );
     }
 
     /// Every one of these was a live 404 before periods were elided; the
@@ -106,9 +112,18 @@ mod tests {
     #[test]
     fn periods_are_elided_not_separated() {
         assert_eq!(slug("M.O.D.O.K."), "modok");
-        assert_eq!(slug("Nick Fury, Agent of S.H.I.E.L.D."), "nick-fury-agent-of-shield");
-        assert_eq!(slug("Quake, Agent of S.H.I.E.L.D."), "quake-agent-of-shield");
-        assert_eq!(slug("Scientist Supreme of A.I.M."), "scientist-supreme-of-aim");
+        assert_eq!(
+            slug("Nick Fury, Agent of S.H.I.E.L.D."),
+            "nick-fury-agent-of-shield"
+        );
+        assert_eq!(
+            slug("Quake, Agent of S.H.I.E.L.D."),
+            "quake-agent-of-shield"
+        );
+        assert_eq!(
+            slug("Scientist Supreme of A.I.M."),
+            "scientist-supreme-of-aim"
+        );
         assert_eq!(slug("U.S.Agent, John Walker"), "usagent-john-walker");
         // U+A789 MODIFIER LETTER COLON, the only such character in the pool.
         assert_eq!(slug("Ratonhnhaké꞉ton"), "ratonhnhaketon");
@@ -126,7 +141,10 @@ mod tests {
     fn only_spaced_double_slash_separates_faces() {
         assert_eq!(slug("SP//dr, Piloted by Peni"), "sp-dr-piloted-by-peni");
         assert_eq!(key("SP//dr, Piloted by Peni"), "sp dr piloted by peni");
-        assert_eq!(front_key("SP//dr, Piloted by Peni"), "sp dr piloted by peni");
+        assert_eq!(
+            front_key("SP//dr, Piloted by Peni"),
+            "sp dr piloted by peni"
+        );
 
         assert_eq!(key("Wax // Wane"), "wax/wane");
         assert_eq!(front_key("Wax // Wane"), "wax");

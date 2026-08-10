@@ -33,6 +33,17 @@ pub struct EdhCard {
     pub potential_decks: u32,
 }
 
+impl CommanderData {
+    /// Whether an average-deck fetch is still owed.
+    ///
+    /// The `attempted` flag postdates the first caches, so a commander written
+    /// before it existed decodes as `false`. Treating a populated deck as proof
+    /// of a past attempt migrates those entries without a re-crawl.
+    pub fn needs_avg_deck(&self) -> bool {
+        self.avg_deck.is_empty() && !self.avg_deck_attempted
+    }
+}
+
 impl EdhCard {
     /// Share of this commander's decks that run the card.
     pub fn inclusion(&self) -> f64 {
@@ -50,8 +61,13 @@ pub struct CommanderData {
     pub name: String,
     /// De-duplicated, sorted by inclusion descending.
     pub cards: Vec<EdhCard>,
-    /// EDHREC's average decklist, empty until the second crawl pass runs.
+    /// EDHREC's average decklist, empty until fetched.
     pub avg_deck: Vec<String>,
+    /// Whether an average-deck fetch has been attempted. Some commanders have
+    /// no average deck at all, and without this they would be re-requested on
+    /// every single update, forever.
+    #[serde(default)]
+    pub avg_deck_attempted: bool,
     pub deck_count: u32,
     pub fetched_at: String,
 }
@@ -162,9 +178,15 @@ pub async fn fetch_commander(
 ) -> Result<FetchOutcome> {
     limiter.acquire().await;
     let url = format!("https://json.edhrec.com/pages/commanders/{slug}.json");
-    let resp = client.get(&url).send().await.context("requesting EDHREC commander page")?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .context("requesting EDHREC commander page")?;
 
-    if resp.status() == reqwest::StatusCode::NOT_FOUND || resp.status() == reqwest::StatusCode::FORBIDDEN {
+    if resp.status() == reqwest::StatusCode::NOT_FOUND
+        || resp.status() == reqwest::StatusCode::FORBIDDEN
+    {
         return Ok(FetchOutcome::Missing);
     }
     let page: Page = resp
@@ -200,13 +222,18 @@ pub async fn fetch_commander(
         }
     }
 
-    cards.sort_by(|a, b| b.inclusion().partial_cmp(&a.inclusion()).unwrap_or(std::cmp::Ordering::Equal));
+    cards.sort_by(|a, b| {
+        b.inclusion()
+            .partial_cmp(&a.inclusion())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(FetchOutcome::Fetched(Box::new(CommanderData {
         slug: slug.to_string(),
         name: name.to_string(),
         cards,
         avg_deck: Vec::new(),
+        avg_deck_attempted: false,
         deck_count,
         fetched_at: chrono::Utc::now().to_rfc3339(),
     })))
@@ -219,7 +246,11 @@ pub async fn fetch_avg_deck(
 ) -> Result<Vec<String>> {
     limiter.acquire().await;
     let url = format!("https://json.edhrec.com/pages/average-decks/{slug}.json");
-    let resp = client.get(&url).send().await.context("requesting EDHREC average deck")?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .context("requesting EDHREC average deck")?;
     if !resp.status().is_success() {
         return Ok(Vec::new());
     }
@@ -269,9 +300,10 @@ pub fn load_all(dir: &Path) -> Result<HashMap<String, CommanderData>> {
         if path.file_name().and_then(|n| n.to_str()) == Some("manifest.json") {
             continue;
         }
-        match std::fs::read(&path).map_err(anyhow::Error::from).and_then(|b| {
-            serde_json::from_slice::<CommanderData>(&b).map_err(anyhow::Error::from)
-        }) {
+        match std::fs::read(&path)
+            .map_err(anyhow::Error::from)
+            .and_then(|b| serde_json::from_slice::<CommanderData>(&b).map_err(anyhow::Error::from))
+        {
             Ok(data) => {
                 out.insert(data.slug.clone(), data);
             }

@@ -143,11 +143,14 @@ impl Collection {
     }
 
     fn insert(&mut self, name: &str, qty: u32, file_name: &str) {
-        let entry = self.by_key.entry(names::key(name)).or_insert_with(|| OwnedCard {
-            name: name.to_string(),
-            qty: 0,
-            sources: HashMap::new(),
-        });
+        let entry = self
+            .by_key
+            .entry(names::key(name))
+            .or_insert_with(|| OwnedCard {
+                name: name.to_string(),
+                qty: 0,
+                sources: HashMap::new(),
+            });
         entry.qty += qty;
         *entry.sources.entry(file_name.to_string()).or_insert(0) += qty;
     }
@@ -185,13 +188,20 @@ mod tests {
              Sideboard\n\
              1 Wax // Wane (DMR) 211\n",
         );
-        assert_eq!(c.files[0].unparsed.len(), 0, "unparsed: {:?}", c.files[0].unparsed);
+        assert_eq!(
+            c.files[0].unparsed.len(),
+            0,
+            "unparsed: {:?}",
+            c.files[0].unparsed
+        );
         assert_eq!(c.total_cards(), 7);
         assert_eq!(c.get(&names::key("Crash and Burn")).unwrap().qty, 3);
         // Foil marker must not leak into the name.
         assert!(c.get(&names::key("Hardbristle Bandit")).is_some());
         // Non-numeric collector numbers still parse.
-        assert!(c.get(&names::key("The Ring // The Ring Tempts You")).is_some());
+        assert!(c
+            .get(&names::key("The Ring // The Ring Tempts You"))
+            .is_some());
         // Front-face alias resolves.
         assert!(c.get("wax").is_some());
     }

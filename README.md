@@ -4,13 +4,34 @@ Finds the Commander decks hiding in your bulk. Upload Archidekt bulk exports and
 every legal commander gets scored against what you actually own, using EDHREC's
 aggregate deck data.
 
-```
-cargo build --release
-./target/release/bulkup update     # build the cache (first run, ~45 min)
-./target/release/bulkup            # serve http://localhost:8080
-```
+## Install
 
-Single binary, no runtime to install. The web UI is compiled in.
+Download the build for your machine from
+[Releases](../../releases/latest), unzip it, and run it. Nothing else to
+install — it is one self-contained file with the web UI compiled in.
+
+| | |
+| --- | --- |
+| **Windows** | `bulkup-windows-x64.zip` → run `bulkup.exe` |
+| **Mac (M1/M2/M3/M4)** | `bulkup-macos-apple-silicon.zip` → run `bulkup` |
+| **Mac (Intel)** | `bulkup-macos-intel.zip` → run `bulkup` |
+| **Linux** | `bulkup-linux-x64.zip` → run `bulkup` |
+
+It opens <http://localhost:8080> in your browser by itself. On a first run it
+starts downloading card data immediately and results appear as they arrive —
+there is no setup step to remember.
+
+Two platform notes. On macOS the first launch is blocked because the binary is
+unsigned: right-click it, choose **Open**, then **Open** again. On Windows,
+SmartScreen may show "Windows protected your PC" — click **More info** →
+**Run anyway**.
+
+### Or build from source
+
+```bash
+cargo build --release
+./target/release/bulkup
+```
 
 ## What it ranks on
 
@@ -55,6 +76,18 @@ Each result also shows:
   so the crawler rate-limits itself (2.5 req/s by default), identifies itself in
   the `User-Agent`, and caches everything to disk so a full crawl happens once.
 
+## How long the first run takes
+
+Roughly 25 minutes of background downloading, and you can use the tool while it
+happens — commanders are ranked as they arrive. The limit is politeness, not
+speed: EDHREC has no public API, so the crawler holds itself to 2.5 requests a
+second.
+
+Average decklists are fetched lazily, so opening any commander pulls its list
+straight away rather than waiting for the background pass to reach it.
+
+Everything is cached in `data/` (~110 MB), so this happens once.
+
 ## Updating after a new set
 
 Press **Update data**, or run `bulkup update` on a schedule. It is incremental:
@@ -76,6 +109,7 @@ everything.
 | `BULKUP_PORT` | `8080` | Port for the web UI. |
 | `BULKUP_DATA` | `data` | Cache directory. |
 | `BULKUP_RPS` | `2.5` | EDHREC requests per second. Please don't raise this much. |
+| `BULKUP_OPEN` | `1` | Set to `0` to stop it opening a browser on start. |
 
 ## Input format
 

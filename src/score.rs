@@ -79,10 +79,7 @@ pub struct CommanderDetail {
     pub cards: Vec<CardRow>,
 }
 
-fn owned_lookup<'a>(
-    collection: &'a Collection,
-    name: &str,
-) -> Option<&'a crate::bulk::OwnedCard> {
+fn owned_lookup<'a>(collection: &'a Collection, name: &str) -> Option<&'a crate::bulk::OwnedCard> {
     collection
         .get(&names::key(name))
         .or_else(|| collection.get(&names::front_key(name)))
@@ -158,8 +155,7 @@ pub fn detail(
     scryfall: &ScryfallIndex,
 ) -> CommanderDetail {
     let summary = score_commander(data, collection, scryfall);
-    let avg: std::collections::HashSet<&str> =
-        data.avg_deck.iter().map(String::as_str).collect();
+    let avg: std::collections::HashSet<&str> = data.avg_deck.iter().map(String::as_str).collect();
 
     let cards = data
         .cards
@@ -261,26 +257,42 @@ mod tests {
     use crate::edhrec::EdhCard;
 
     fn card(name: &str, synergy: f64, num: u32) -> EdhCard {
-        EdhCard { name: name.into(), synergy, num_decks: num, potential_decks: 1000 }
+        EdhCard {
+            name: name.into(),
+            synergy,
+            num_decks: num,
+            potential_decks: 1000,
+        }
     }
 
     #[test]
     fn staples_do_not_drive_the_ranking() {
         let mut collection = Collection::default();
-        collection.add_file("bulk.txt", "1 Arcane Signet (TDC) 105\n1 Ashnod's Altar (CMM) 1\n");
+        collection.add_file(
+            "bulk.txt",
+            "1 Arcane Signet (TDC) 105\n1 Ashnod's Altar (CMM) 1\n",
+        );
         let scryfall = ScryfallIndex::default();
 
         // A commander whose overlap is one staple, versus one whose overlap is a
         // genuine payoff. Equal hit counts; synergy must separate them.
         let staple_only = CommanderData {
-            slug: "a".into(), name: "A".into(),
+            slug: "a".into(),
+            name: "A".into(),
             cards: vec![card("Arcane Signet", 0.001, 900)],
-            avg_deck: vec![], deck_count: 1000, fetched_at: String::new(),
+            avg_deck: vec![],
+            avg_deck_attempted: true,
+            deck_count: 1000,
+            fetched_at: String::new(),
         };
         let payoff = CommanderData {
-            slug: "b".into(), name: "B".into(),
+            slug: "b".into(),
+            name: "B".into(),
             cards: vec![card("Ashnod's Altar", 0.42, 600)],
-            avg_deck: vec![], deck_count: 1000, fetched_at: String::new(),
+            avg_deck: vec![],
+            avg_deck_attempted: true,
+            deck_count: 1000,
+            fetched_at: String::new(),
         };
 
         let a = score_commander(&staple_only, &collection, &scryfall);
@@ -299,9 +311,13 @@ mod tests {
         collection.add_file("bulk.txt", "1 Sol Ring (LEA) 1\n");
         let scryfall = ScryfallIndex::default();
         let data = CommanderData {
-            slug: "c".into(), name: "C".into(),
+            slug: "c".into(),
+            name: "C".into(),
             cards: vec![card("Sol Ring", -0.3, 950)],
-            avg_deck: vec![], deck_count: 1000, fetched_at: String::new(),
+            avg_deck: vec![],
+            avg_deck_attempted: true,
+            deck_count: 1000,
+            fetched_at: String::new(),
         };
         let m = score_commander(&data, &collection, &scryfall);
         assert_eq!(m.synergy_score, 0.0);
@@ -314,9 +330,16 @@ mod tests {
         collection.add_file("box_b.txt", "1 Grave Pact (CMM) 2\n");
         let scryfall = ScryfallIndex::default();
         let data = CommanderData {
-            slug: "d".into(), name: "D".into(),
-            cards: vec![card("Ashnod's Altar", 0.4, 600), card("Grave Pact", 0.3, 500)],
-            avg_deck: vec![], deck_count: 1000, fetched_at: String::new(),
+            slug: "d".into(),
+            name: "D".into(),
+            cards: vec![
+                card("Ashnod's Altar", 0.4, 600),
+                card("Grave Pact", 0.3, 500),
+            ],
+            avg_deck: vec![],
+            avg_deck_attempted: true,
+            deck_count: 1000,
+            fetched_at: String::new(),
         };
         let m = score_commander(&data, &collection, &scryfall);
         assert_eq!(m.by_source["box_a.txt"], 1);
