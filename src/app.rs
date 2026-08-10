@@ -184,12 +184,16 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
     }
 
     let queue = Arc::new(tokio::sync::Mutex::new(todo.into_iter()));
+    // Only commanders EDHREC actively disowns (404/403) are recorded as absent.
+    // A network blip must not blacklist a commander from every future update.
+    let absent = Arc::new(tokio::sync::Mutex::new(Vec::<String>::new()));
     let workers = 4;
     let mut handles = Vec::new();
 
     for _ in 0..workers {
         let state = Arc::clone(state);
         let queue = Arc::clone(&queue);
+        let absent = Arc::clone(&absent);
         handles.push(tokio::spawn(async move {
             loop {
                 let Some((name, slug)) = queue.lock().await.next() else {
@@ -204,6 +208,7 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
                         state.tick(Some(name)).await;
                     }
                     Ok(edhrec::FetchOutcome::Missing) => {
+                        absent.lock().await.push(slug);
                         state.tick(Some(format!("{name} (not on EDHREC)"))).await;
                     }
                     Err(e) => {
@@ -223,19 +228,12 @@ async fn crawl_commanders(state: &Shared, force: bool) -> Result<()> {
     let have = state.edhrec.read().await;
     for (slug, data) in have.iter() {
         manifest.fetched.insert(slug.clone(), data.fetched_at.clone());
-    }
-    {
-        let idx = state.scryfall.read().await;
-        for c in idx.commanders() {
-            let slug = names::slug(&c.name);
-            if !have.contains_key(&slug) {
-                manifest.missing.insert(slug, now.clone());
-            } else {
-                manifest.missing.remove(&slug);
-            }
-        }
+        manifest.missing.remove(slug);
     }
     drop(have);
+    for slug in absent.lock().await.iter() {
+        manifest.missing.insert(slug.clone(), now.clone());
+    }
     edhrec::save_manifest(&state.dir, &manifest)?;
     Ok(())
 }

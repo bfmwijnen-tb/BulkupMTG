@@ -50,7 +50,9 @@ pub struct CommanderMatch {
     pub avg_deck_total: usize,
 
     pub owns_commander: bool,
-    /// Which uploaded file each hit came from, so you know which box to open.
+    /// How many of the top-100 hits are findable in each uploaded file, so you
+    /// know which box to open. A card held in two files counts in both, so these
+    /// need not sum to `top_hits`.
     pub by_source: HashMap<String, usize>,
 }
 
