@@ -134,8 +134,12 @@ async fn update_scryfall(state: &Shared, force: bool) -> Result<()> {
     state.set_phase("scryfall", 1, "checking Scryfall bulk data").await;
 
     let remote = scryfall::remote_version(&state.client).await?;
-    let current = state.scryfall.read().await.source_updated_at.clone();
-    if !force && remote == current && !current.is_empty() {
+    let (current, version) = {
+        let idx = state.scryfall.read().await;
+        (idx.source_updated_at.clone(), idx.version)
+    };
+    let compatible = version == scryfall::INDEX_VERSION;
+    if !force && compatible && remote == current && !current.is_empty() {
         state.tick(Some("card index already current".into())).await;
         return Ok(());
     }

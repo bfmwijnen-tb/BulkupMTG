@@ -73,7 +73,6 @@ pub struct CardRow {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CommanderDetail {
-    #[serde(flatten)]
     pub summary: CommanderMatch,
     pub cards: Vec<CardRow>,
 }

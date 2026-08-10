@@ -17,6 +17,13 @@ use crate::names;
 
 const USER_AGENT: &str = concat!("BulkupMTG/", env!("CARGO_PKG_VERSION"), " (bulk collection matcher)");
 
+/// Bump whenever `names::key` changes or a new field is distilled from the dump.
+///
+/// The index is keyed by normalised name, so a change to normalisation leaves
+/// every cached key subtly wrong — lookups miss instead of failing loudly. The
+/// version forces a rebuild rather than letting that happen quietly.
+pub const INDEX_VERSION: u32 = 2;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CardInfo {
     pub name: String,
@@ -33,6 +40,8 @@ pub struct CardInfo {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ScryfallIndex {
+    #[serde(default)]
+    pub version: u32,
     pub updated_at: String,
     pub source_updated_at: String,
     /// `names::key` -> card. Contains front-face aliases too.
@@ -216,6 +225,7 @@ pub async fn download(client: &reqwest::Client) -> Result<ScryfallIndex> {
     };
 
     let mut index = ScryfallIndex {
+        version: INDEX_VERSION,
         updated_at: chrono::Utc::now().to_rfc3339(),
         source_updated_at: entry.updated_at,
         cards: HashMap::with_capacity(raws.len() * 2),
@@ -286,9 +296,52 @@ fn parse_stream(mut reader: Box<dyn BufRead + '_>) -> Result<Vec<RawCard>> {
 
 use std::io::Read;
 
+/// Load the cached index, discarding one built by an incompatible version so it
+/// is re-downloaded rather than silently mis-matching every lookup.
 pub fn load(path: &Path) -> Result<ScryfallIndex> {
     let f = std::fs::File::open(path).with_context(|| format!("opening {}", path.display()))?;
-    serde_json::from_reader(BufReader::new(f)).context("parsing cached Scryfall index")
+    let index: ScryfallIndex =
+        serde_json::from_reader(BufReader::new(f)).context("parsing cached Scryfall index")?;
+    if index.version != INDEX_VERSION {
+        return Ok(ScryfallIndex::default());
+    }
+    Ok(index)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_index_version_is_discarded() {
+        let dir = std::env::temp_dir().join(format!("bulkup-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("index.json");
+
+        let mut old = ScryfallIndex {
+            version: INDEX_VERSION - 1,
+            source_updated_at: "2020-01-01".into(),
+            ..Default::default()
+        };
+        old.cards.insert("stale key".into(), CardInfo {
+            name: "Stale".into(), color_identity: vec![], type_line: String::new(), cmc: 0.0,
+            image_small: None, image_normal: None, scryfall_uri: String::new(),
+            is_commander: false, is_basic: false,
+        });
+        save(&path, &old).unwrap();
+
+        // An index written under different name-normalisation rules must not be
+        // trusted; loading it yields an empty index so the caller re-downloads.
+        let loaded = load(&path).unwrap();
+        assert!(loaded.cards.is_empty());
+        assert_eq!(loaded.source_updated_at, "");
+
+        let current = ScryfallIndex { version: INDEX_VERSION, ..old };
+        save(&path, &current).unwrap();
+        assert_eq!(load(&path).unwrap().cards.len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
 
 pub fn save(path: &Path, index: &ScryfallIndex) -> Result<()> {
