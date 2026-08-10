@@ -63,7 +63,7 @@
   .pip[data-c=W].on { background: #f5eeda; } .pip[data-c=U].on { background: #7cb7e8; }
   .pip[data-c=B].on { background: #a99cb0; } .pip[data-c=R].on { background: #ec8b78; }
   .pip[data-c=G].on { background: #86c99a; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(365px, 1fr)); gap: 14px; }
   .card {
     display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line);
     border-radius: var(--radius); padding: 12px; cursor: pointer; transition: .15s;
@@ -73,9 +73,19 @@
   .card .body { min-width: 0; flex: 1; }
   .card .name { font-weight: 600; font-size: 14px; margin-bottom: 5px; }
   .rank { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 5px; }
-  .stats { display: flex; gap: 12px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  /* One line, never wrapping — a wrapped stat row makes cards different
+     heights and the list impossible to scan down. */
+  .stats { display: flex; gap: 11px; font-size: 12.5px; color: var(--muted); align-items: baseline; white-space: nowrap; }
   .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
-  .score { color: var(--accent); font-weight: 700; }
+  .score { color: var(--accent); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .ci { margin-left: auto; display: flex; gap: 3px; }
+  .ci i {
+    width: 15px; height: 15px; border-radius: 50%; font-style: normal; font-size: 9.5px;
+    font-weight: 800; display: grid; place-items: center; color: #14151c;
+  }
+  .ci i[data-c=W] { background: #f5eeda; } .ci i[data-c=U] { background: #7cb7e8; }
+  .ci i[data-c=B] { background: #a99cb0; } .ci i[data-c=R] { background: #ec8b78; }
+  .ci i[data-c=G] { background: #86c99a; } .ci i[data-c=C] { background: #b9bdc9; }
   .bar { height: 4px; background: var(--panel-2); border-radius: 2px; margin-top: 8px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--accent); }
   .note { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
@@ -95,7 +105,9 @@
   .sheet header { position: sticky; top: -28px; border-radius: 14px 14px 0 0; }
   .sheet .inner { padding: 18px; }
   .cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-  .mini { position: relative; }
+  /* Badges anchor to the art, not to the tile — the tile also holds the caption,
+     so anchoring here would float them over the text. */
+  .mini .thumb { position: relative; }
   .mini img { width: 100%; border-radius: 8px; display: block; background: var(--panel-2); aspect-ratio: 488/680; }
   .mini.miss img { opacity: .22; filter: grayscale(1); }
   .mini .tag {
@@ -106,7 +118,14 @@
     position: absolute; bottom: 6px; left: 6px; background: rgba(8,9,14,.86);
     font-size: 11px; padding: 2px 6px; border-radius: 5px; font-variant-numeric: tabular-nums;
   }
-  .mini .cname { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.3; }
+  .mini .syn.neg { color: var(--muted); }
+  .mini .cname {
+    font-size: 11.5px; color: var(--muted); margin-top: 5px; line-height: 1.32;
+    /* Fixed height keeps the grid rows aligned regardless of name length. */
+    height: 2.64em; overflow: hidden;
+  }
+  .mini .cname b { color: var(--text); font-weight: 600; }
+  .mini .src { color: var(--good); }
   .legend { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
   .kv { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13.5px; margin-bottom: 14px; }
   .kv div b { color: var(--accent); font-size: 17px; font-variant-numeric: tabular-nums; }
@@ -275,20 +294,24 @@ async function refresh() {
 
   res.innerHTML = data.matches.map((m, i) => {
     const real = m.top_hits - m.staple_hits;
-    const avg = m.avg_deck_total ? ` · <b>${m.avg_deck_owned}/${m.avg_deck_total}</b> of avg deck` : '';
-    const src = Object.entries(m.by_source).map(([f, n]) => `${n} in ${f}`).join(' · ');
+    const ci = (m.color_identity.length ? m.color_identity : ['C'])
+      .map(c => `<i data-c="${c}">${c}</i>`).join('');
+    const avg = m.avg_deck_total ? `avg deck <b>${m.avg_deck_owned}/${m.avg_deck_total}</b> · ` : '';
+    const src = Object.entries(m.by_source)
+      .sort((a, b) => b[1] - a[1])
+      .map(([f, n]) => `${n} in ${esc(f)}`).join(' · ');
     return `<div class="card" data-slug="${esc(m.slug)}">
-      <img loading="lazy" src="${m.image_small || ''}" alt="">
+      <img loading="lazy" src="${m.image_small || ''}" alt="" onerror="this.style.visibility='hidden'">
       <div class="body">
         <div class="name"><span class="rank">${i + 1}.</span>${esc(m.name)}${m.owns_commander ? ' ✔' : ''}</div>
         <div class="stats">
           <span class="score">${m.synergy_score.toFixed(2)}</span>
-          <span><b>${m.top_hits}</b>/100 owned</span>
-          <span><b>${real}</b> non-staple</span>
+          <span><b>${m.top_hits}</b>/100</span>
+          <span><b>${real}</b> real</span>
+          <span class="ci">${ci}</span>
         </div>
-        <div class="stats"><span>${m.color_identity.join('') || 'C'}${avg}</span></div>
         <div class="bar"><i style="width:${(m.synergy_score / max * 100).toFixed(1)}%"></i></div>
-        ${src ? `<div class="note">${esc(src)}</div>` : ''}
+        <div class="note">${avg}${src || 'no source breakdown'}</div>
       </div>
     </div>`;
   }).join('');
@@ -313,13 +336,22 @@ async function openDetail(slug) {
     <div><b>${s.deck_count.toLocaleString()}</b><span>decks on EDHREC</span></div>
     <div><b>${s.owns_commander ? 'Yes' : 'No'}</b><span>commander in your bulk</span></div>`;
 
-  $('#d-cards').innerHTML = d.cards.map(c => `
-    <div class="mini ${c.owned ? '' : 'miss'}">
-      <img loading="lazy" src="${c.image_normal || c.image_small || ''}" alt="${esc(c.name)}">
-      ${c.owned ? `<span class="tag">${c.qty > 1 ? c.qty + '×' : 'own'}</span>` : ''}
-      <span class="syn">${(c.synergy * 100).toFixed(0)}%</span>
-      <div class="cname">${esc(c.name)}${c.owned && c.sources.length ? '<br>' + esc(c.sources.map(s => s[0]).join(', ')) : ''}</div>
-    </div>`).join('');
+  $('#d-cards').innerHTML = d.cards.map(c => {
+    // Filenames are long; the extension carries no information here.
+    const src = c.sources.map(s => s[0].replace(/\.[^.]+$/, '')).join(', ');
+    const syn = (c.synergy * 100).toFixed(0);
+    return `<div class="mini ${c.owned ? '' : 'miss'}">
+      <div class="thumb">
+        <img loading="lazy" src="${c.image_normal || c.image_small || ''}" alt="${esc(c.name)}"
+             onerror="this.style.visibility='hidden'">
+        ${c.owned ? `<span class="tag">${c.qty > 1 ? c.qty + '×' : 'own'}</span>` : ''}
+        <span class="syn ${c.synergy < 0 ? 'neg' : ''}">${syn}%</span>
+      </div>
+      <div class="cname" title="${esc(c.name)}${src ? ' — ' + esc(src) : ''}">
+        <b>${esc(c.name)}</b>${src ? `<br><span class="src">${esc(src)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
   $('#overlay').classList.add('on');
   document.body.style.overflow = 'hidden';
 }
