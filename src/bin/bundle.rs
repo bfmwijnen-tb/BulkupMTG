@@ -53,6 +53,25 @@ struct Commander(
 /// Cards in a Commander deck, excluding the commander itself.
 const DECK_SIZE: usize = 99;
 
+/// Entry point for static hosting. The `<meta refresh>` works without
+/// JavaScript and the link covers the case where even that is blocked.
+const INDEX_REDIRECT: &str = r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=bulkup.html">
+<title>BulkupMTG</title>
+<link rel="canonical" href="bulkup.html">
+<style>
+  body { background:#0e0f15; color:#8f96ad; font:15px/1.6 system-ui, sans-serif;
+         display:grid; place-items:center; height:100vh; margin:0; }
+  a { color:#f0b429; }
+</style>
+</head>
+<body><p>Loading BulkupMTG… <a href="bulkup.html">continue</a>.</p></body>
+</html>
+"#;
+
 #[derive(Serialize)]
 struct Bundle {
     generated: String,
@@ -162,6 +181,11 @@ fn main() -> Result<()> {
     // from GitHub without building anything.
     let html = TEMPLATE.replace("__BUNDLE__", &b64);
     std::fs::write("bulkup.html", &html)?;
+
+    // A static host serves index.html at the bare URL, but the page keeps its
+    // own name so downloads are recognisable. A redirect bridges the two for a
+    // few hundred bytes, rather than duplicating a 7 MB file.
+    std::fs::write("index.html", INDEX_REDIRECT)?;
 
     println!(
         "bulkup.html — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",

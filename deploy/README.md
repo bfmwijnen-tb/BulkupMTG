@@ -69,3 +69,34 @@ rsconnect::deployDoc("bulkup.html")
 Viewers can also press **Check for new commanders** in the page itself, which
 fetches straight from Scryfall and EDHREC and keeps the result in their own
 browser's `localStorage` — no redeploy needed, but it is per-viewer.
+
+## GitHub Pages
+
+Two prerequisites before the Pages settings page will do anything useful:
+
+1. **The repo must be public.** Pages on a private repo needs a paid GitHub
+   plan. Settings → General → Danger Zone → Change visibility.
+2. **`index.html` must exist**, which `cargo run --bin bundle` now writes — a
+   small redirect to `bulkup.html`, so the bare URL works while the download
+   keeps a recognisable name.
+
+Then Settings → Pages → Source: *Deploy from a branch* → `main` / `/ (root)`.
+The site appears at `https://<user>.github.io/<repo>/`.
+
+### The Custom domain field
+
+**Leave it empty unless you already own a domain.** It is not a name you invent
+— it must be a domain you control and can add DNS records for. Empty gives you
+the free `github.io` address.
+
+If you do own one, enter it bare: no `https://`, no trailing slash, no path.
+
+| Kind | Enter | DNS record to add |
+| --- | --- | --- |
+| Subdomain (easiest) | `mtg.example.com` | `CNAME` → `<user>.github.io` |
+| Apex | `example.com` | Four `A` records → `185.199.108.153`, `.109.153`, `.110.153`, `.111.153` |
+
+A subdomain is the simpler of the two: one CNAME, and no need for a registrar
+that supports ALIAS/ANAME at the apex. Saving the field commits a `CNAME` file
+to the repo — leave it there. Tick **Enforce HTTPS** once the certificate has
+been issued, which can take up to an hour.
