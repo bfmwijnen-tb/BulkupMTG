@@ -1,4 +1,4 @@
-//! Builds `dist/bulkup.html` — the whole tool as one self-contained web page.
+//! Builds `index.html` — the whole tool as one self-contained web page.
 //!
 //! This exists because a compiled binary is unusable on a managed machine that
 //! blocks running new executables. A single HTML file needs no install and no
@@ -52,6 +52,11 @@ struct Commander(
 
 /// Cards in a Commander deck, excluding the commander itself.
 const DECK_SIZE: usize = 99;
+
+/// The page is written as `index.html` so a static host serves it at the bare
+/// URL with no redirect. A second copy under a friendlier download name would
+/// mean committing 7 MB twice on every regeneration, so there is just the one.
+const OUTPUT: &str = "index.html";
 
 #[derive(Serialize)]
 struct Bundle {
@@ -158,13 +163,13 @@ fn main() -> Result<()> {
     let gz = enc.finish()?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&gz);
 
-    // Written to the repo root and committed, so the page can be downloaded
-    // from GitHub without building anything.
+    // Written to the repo root and committed, so the page can be served by
+    // GitHub Pages and downloaded from GitHub without building anything.
     let html = TEMPLATE.replace("__BUNDLE__", &b64);
-    std::fs::write("bulkup.html", &html)?;
+    std::fs::write(OUTPUT, &html)?;
 
     println!(
-        "bulkup.html — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",
+        "{OUTPUT} — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",
         bundle.commanders.len(),
         bundle.cards.len(),
         raw.len() as f64 / 1e6,
