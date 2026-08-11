@@ -68,6 +68,10 @@ jobs:
           name: bulkup-${{ matrix.label }}
           path: bulkup-${{ matrix.label }}.zip
 
+  # The standalone page needs a crawled cache to embed, which CI does not have,
+  # so it is built locally and attached by hand. Kept as a reminder of the two
+  # shipping formats.
+
   publish:
     needs: build
     runs-on: ubuntu-latest

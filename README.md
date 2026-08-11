@@ -60,7 +60,7 @@ Each result also shows:
 | **synergy score** | Ranking key. Sum of positive synergy over owned cards. |
 | **N/100 owned** | The raw count, and what the threshold filters on. |
 | **non-staple** | How much of that count is *not* generic filler. |
-| **avg deck** | Owned share of EDHREC's actual 99-card average decklist — the best single answer to "could I build this tonight?" |
+| **deck ready** | Share of a real 99-card deck you hold, **counting basic lands**. The best single answer to "could I build this tonight?" |
 | **sources** | Which uploaded file each hit came from, so you know which box to open. |
 | **✔** | You already own the commander itself. |
 
@@ -138,3 +138,60 @@ the same name replaces it instead of double-counting.
 | `src/score.rs` | Matching and the synergy scoring model. |
 | `src/app.rs` | Shared state and the background update job. |
 | `src/web.rs` | HTTP API and embedded UI. |
+
+## Standalone page (no install at all)
+
+Some machines block running newly-created executables, which stops both the
+release binary and `cargo build` (build scripts compile and run small
+executables of their own). For those, everything ships as a single web page:
+
+```bash
+cargo run --release --bin bundle    # writes bulkup.html
+```
+
+`bulkup.html` is committed at the root of this repo, so it can be downloaded
+straight from GitHub with nothing to build. It is ~7 MB and completely
+self-contained — open it in a browser: no install, no server, no executable.
+The crawled EDHREC data is gzipped and embedded, the page inflates it with
+`DecompressionStream`, and card art loads from Scryfall's CDN.
+
+Because everything runs in the browser, the page can also be hosted as static
+content — see [`deploy/`](deploy/) for Posit Connect.
+
+Both EDHREC and Scryfall send `Access-Control-Allow-Origin: *`, so the page can
+also fetch new commanders itself: **Check for new commanders** diffs Scryfall's
+commander list against the embedded data and pulls only what is missing,
+storing it in `localStorage`. That covers a new set without regenerating the
+file.
+
+
+## Basic lands, and why "40 of 100" understates you
+
+A Commander deck is 99 cards, and a large slice of that is basic land you
+already own by the shoebox. EDHREC's ranked lists contain no basics at all, so
+"40 of the top 100" silently compares your bulk against a pool that excludes a
+third of the finished deck. The effect is worst exactly where you would expect:
+across the crawled data the average decklist runs between **8 and 69 basics**,
+median 23, and the mono-coloured commanders sit at the high end.
+
+So the headline figure is **deck readiness**:
+
+    (nonbasics you own from the average decklist + basics that deck runs) / 99
+
+The meter under each commander shows it in two tones — gold for cards you own,
+slate for the basics. Temmet reads *72% of a deck — 58 owned + 13 basics*,
+which is a far more honest answer than *61/100*.
+
+## Choosing which cards "belong to" a commander
+
+There is no single right answer, so the **Card pool** selector offers three,
+and the pool size is adjustable:
+
+| Pool | What it is | When it is the right one |
+| --- | --- | --- |
+| **Most played** | Highest inclusion rate first | Matches what EDHREC's page shows, but the head of the list is format staples |
+| **Highest synergy** | Biggest gap versus the colour baseline first | Finding the cards that are genuinely *about* this commander |
+| **Average decklist** | Only cards in EDHREC's actual average deck | **Usually the best.** A real 99-card deck someone would sleeve up — correct size and composition, no arbitrary cutoff |
+
+**Exclude lands** drops every land from the pool, which is useful when your
+bulk is short on fixing and you want to judge the spells on their own.
