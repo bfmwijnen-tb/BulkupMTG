@@ -8,6 +8,12 @@
 //!
 //! Run `bulkup update` first so `data/` is populated, then `cargo run --bin bundle`.
 
+// The shared modules below are compiled into this binary as well as the server,
+// and only the reading half is used here — the crawler and downloader are dead
+// code in this target while very much alive in the other. Without this, every
+// one of them trips `-D warnings` in CI.
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 
