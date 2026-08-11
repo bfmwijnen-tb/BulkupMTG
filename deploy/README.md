@@ -1,6 +1,6 @@
 # Hosting BulkupMTG on Posit Connect
 
-Short answer: **yes, but don't write a Shiny app for it.** `bulkup.html` is
+Short answer: **yes, but don't write a Shiny app for it.** `index.html` is
 already a complete browser application — the parsing, matching and scoring all
 run client-side. Publish it as **static content** and Connect just serves the
 file.
@@ -9,10 +9,10 @@ file.
 
 ```r
 install.packages("rsconnect")
-rsconnect::deployDoc("bulkup.html")
+rsconnect::deployDoc("index.html")
 ```
 
-Or in the Connect UI: **Publish → Static content**, and upload `bulkup.html`.
+Or in the Connect UI: **Publish → Static content**, and upload `index.html`.
 
 Why this is the right shape:
 
@@ -32,7 +32,7 @@ The only server-side cost is the ~7 MB download, which the browser caches.
 it. Copy the generated page next to it first:
 
 ```bash
-cp ../bulkup.html .
+cp ../index.html .
 rsconnect::deployApp()      # from this directory
 ```
 
@@ -62,8 +62,8 @@ and it can be built; otherwise static content is the answer.
 Regenerate and republish:
 
 ```bash
-cargo run --release --bin bundle   # rewrites bulkup.html
-rsconnect::deployDoc("bulkup.html")
+cargo run --release --bin bundle   # rewrites index.html
+rsconnect::deployDoc("index.html")
 ```
 
 Viewers can also press **Check for new commanders** in the page itself, which
@@ -76,9 +76,9 @@ Two prerequisites before the Pages settings page will do anything useful:
 
 1. **The repo must be public.** Pages on a private repo needs a paid GitHub
    plan. Settings → General → Danger Zone → Change visibility.
-2. **`index.html` must exist**, which `cargo run --bin bundle` now writes — a
-   small redirect to `bulkup.html`, so the bare URL works while the download
-   keeps a recognisable name.
+2. **`index.html` must exist** — `cargo run --bin bundle` writes the page
+   under exactly that name, so the bare URL serves the tool directly with no
+   redirect.
 
 Then Settings → Pages → Source: *Deploy from a branch* → `main` / `/ (root)`.
 The site appears at `https://<user>.github.io/<repo>/`.

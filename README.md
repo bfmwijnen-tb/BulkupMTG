@@ -146,10 +146,10 @@ release binary and `cargo build` (build scripts compile and run small
 executables of their own). For those, everything ships as a single web page:
 
 ```bash
-cargo run --release --bin bundle    # writes bulkup.html
+cargo run --release --bin bundle    # writes index.html
 ```
 
-`bulkup.html` is committed at the root of this repo, so it can be downloaded
+`index.html` is committed at the root of this repo, so it can be downloaded
 straight from GitHub with nothing to build. It is ~7 MB and completely
 self-contained — open it in a browser: no install, no server, no executable.
 The crawled EDHREC data is gzipped and embedded, the page inflates it with

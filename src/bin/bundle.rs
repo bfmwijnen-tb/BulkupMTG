@@ -1,4 +1,4 @@
-//! Builds `dist/bulkup.html` — the whole tool as one self-contained web page.
+//! Builds `index.html` — the whole tool as one self-contained web page.
 //!
 //! This exists because a compiled binary is unusable on a managed machine that
 //! blocks running new executables. A single HTML file needs no install and no
@@ -53,24 +53,10 @@ struct Commander(
 /// Cards in a Commander deck, excluding the commander itself.
 const DECK_SIZE: usize = 99;
 
-/// Entry point for static hosting. The `<meta refresh>` works without
-/// JavaScript and the link covers the case where even that is blocked.
-const INDEX_REDIRECT: &str = r#"<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url=bulkup.html">
-<title>BulkupMTG</title>
-<link rel="canonical" href="bulkup.html">
-<style>
-  body { background:#0e0f15; color:#8f96ad; font:15px/1.6 system-ui, sans-serif;
-         display:grid; place-items:center; height:100vh; margin:0; }
-  a { color:#f0b429; }
-</style>
-</head>
-<body><p>Loading BulkupMTG… <a href="bulkup.html">continue</a>.</p></body>
-</html>
-"#;
+/// The page is written as `index.html` so a static host serves it at the bare
+/// URL with no redirect. A second copy under a friendlier download name would
+/// mean committing 7 MB twice on every regeneration, so there is just the one.
+const OUTPUT: &str = "index.html";
 
 #[derive(Serialize)]
 struct Bundle {
@@ -177,18 +163,13 @@ fn main() -> Result<()> {
     let gz = enc.finish()?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&gz);
 
-    // Written to the repo root and committed, so the page can be downloaded
-    // from GitHub without building anything.
+    // Written to the repo root and committed, so the page can be served by
+    // GitHub Pages and downloaded from GitHub without building anything.
     let html = TEMPLATE.replace("__BUNDLE__", &b64);
-    std::fs::write("bulkup.html", &html)?;
-
-    // A static host serves index.html at the bare URL, but the page keeps its
-    // own name so downloads are recognisable. A redirect bridges the two for a
-    // few hundred bytes, rather than duplicating a 7 MB file.
-    std::fs::write("index.html", INDEX_REDIRECT)?;
+    std::fs::write(OUTPUT, &html)?;
 
     println!(
-        "bulkup.html — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",
+        "{OUTPUT} — {} commanders, {} cards\n  json {:.1} MB → gz {:.1} MB → page {:.1} MB",
         bundle.commanders.len(),
         bundle.cards.len(),
         raw.len() as f64 / 1e6,
